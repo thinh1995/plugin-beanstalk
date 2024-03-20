@@ -1,35 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\YamlResponseParser;
+use Pheanstalk\Contract\CommandInterface;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Parser\YamlDictionaryParser;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\ServerStats;
 
 /**
  * The 'stats' command.
+ *
  * Statistical information about the system as a whole.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class StatsCommand
-    extends AbstractCommand
+final class StatsCommand implements CommandInterface
 {
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function getCommandLine(): string
     {
         return 'stats';
     }
 
-    /* (non-phpdoc)
-     * @see Command::getResponseParser()
-     */
-    public function getResponseParser()
+    public function interpret(RawResponse $response): ServerStats
     {
-        return new YamlResponseParser(
-            YamlResponseParser::MODE_DICT
-        );
+        if ($response->type === ResponseType::Ok && is_string($response->data)) {
+            return ServerStats::fromBeanstalkArray((new YamlDictionaryParser())->parse($response->data));
+        }
+        throw match ($response->type) {
+            ResponseType::Ok => MalformedResponseException::expectedData(),
+            default => new UnsupportedResponseException($response->type)
+        };
     }
 }

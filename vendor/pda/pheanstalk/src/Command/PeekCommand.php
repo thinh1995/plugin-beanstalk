@@ -1,9 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\Exception;
-use Pheanstalk\Response;
+use Pheanstalk\Contract\CommandInterface;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\Job;
+use Pheanstalk\Values\JobId;
+use Pheanstalk\Values\JobState;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\Success;
 
 /**
  * The 'peek', 'peek-ready', 'peek-delayed' and 'peek-buried' commands.
@@ -11,83 +20,34 @@ use Pheanstalk\Response;
  * The peek commands let the client inspect a job in the system. There are four
  * variations. All but the first (peek) operate only on the currently used tube.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class PeekCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class PeekCommand implements CommandInterface
 {
-    const TYPE_ID = 'id';
-    const TYPE_READY = 'ready';
-    const TYPE_DELAYED = 'delayed';
-    const TYPE_BURIED = 'buried';
-
-    private $_subcommands = array(
-        self::TYPE_READY,
-        self::TYPE_DELAYED,
-        self::TYPE_BURIED,
-    );
-
-    private $_subcommand;
-    private $_jobId;
-
-    /**
-     * @param mixed $peekSubject Job ID or self::TYPE_*
-     */
-    public function __construct($peekSubject)
+    private readonly string $command;
+    public function __construct(JobState $state)
     {
-        if (is_int($peekSubject) || ctype_digit($peekSubject)) {
-            $this->_jobId = $peekSubject;
-        } elseif (in_array($peekSubject, $this->_subcommands)) {
-            $this->_subcommand = $peekSubject;
-        } else {
-            throw new Exception\CommandException(sprintf(
-                'Invalid peek subject: %s', $peekSubject
-            ));
-        }
+        $this->command = match ($state) {
+            JobState::BURIED => 'peek-buried',
+            JobState::DELAYED => 'peek-delayed',
+            JobState::READY => 'peek-ready',
+            JobState::RESERVED => throw new \InvalidArgumentException("Peeking at reserved jobs is not supported")
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function getCommandLine(): string
     {
-        return isset($this->_jobId) ?
-            sprintf('peek %u', $this->_jobId) :
-            sprintf('peek-%s', $this->_subcommand);
+        return $this->command;
     }
 
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
+    public function interpret(RawResponse $response): Job|Success
     {
-        if ($responseLine == Response::RESPONSE_NOT_FOUND) {
-            if (isset($this->_jobId)) {
-                $message = sprintf(
-                    '%s: Job %u does not exist.',
-                    $responseLine,
-                    $this->_jobId
-                );
-            } else {
-                $message = sprintf(
-                    "%s: There are no jobs in the '%s' status",
-                    $responseLine,
-                    $this->_subcommand
-                );
-            }
-
-            throw new Exception\ServerException($message);
-        } elseif (preg_match('#^FOUND (\d+) \d+$#', $responseLine, $matches)) {
-            return $this->_createResponse(
-                Response::RESPONSE_FOUND,
-                array(
-                    'id' => (int) $matches[1],
-                    'jobdata' => $responseData,
-                )
-            );
+        if ($response->type === ResponseType::Found && isset($response->argument) && isset($response->data)) {
+            return new Job(new JobId($response->argument), $response->data);
         }
+        return match ($response->type) {
+            ResponseType::NotFound => new Success(),
+            ResponseType::Found => throw MalformedResponseException::expectedDataAndIntegerArgument(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 }

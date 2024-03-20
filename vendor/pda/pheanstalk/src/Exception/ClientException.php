@@ -1,17 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Exception;
 
 use Pheanstalk\Exception;
 
 /**
- * An exception originating from the beanstalkd client
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * An exception originating from the beanstalkd client.
+ * @internal
+ * @extensible
  */
-class ClientException
-    extends Exception
+class ClientException extends Exception
 {
 }

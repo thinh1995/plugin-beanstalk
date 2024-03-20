@@ -1,62 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
 use Pheanstalk\Exception;
-use Pheanstalk\Response;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\Success;
+use Pheanstalk\Values\TubeCommandTemplate;
+use Pheanstalk\Values\TubeName;
 
 /**
  * The 'pause-tube' command.
- * Temporarily prevent jobs being reserved from the given tube.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * Temporarily prevent jobs being reserved from the given tube.
  */
-class PauseTubeCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class PauseTubeCommand extends TubeCommand
 {
-    private $_tube;
-    private $_delay;
-
     /**
-     * @param string $tube  The tube to pause
-     * @param int    $delay Seconds before jobs may be reserved from this queue.
+     * @param int $delay Seconds before jobs may be reserved from this queue.
      */
-    public function __construct($tube, $delay)
+    public function __construct(TubeName $tube, private readonly int $delay)
     {
-        $this->_tube = $tube;
-        $this->_delay = $delay;
+        parent::__construct($tube);
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function interpret(RawResponse $response): Success
     {
-        return sprintf(
-            'pause-tube %s %u',
-            $this->_tube,
-            $this->_delay
-        );
+        return match ($response->type) {
+            ResponseType::NotFound => throw new Exception\TubeNotFoundException(),
+            ResponseType::Paused => new Success(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
+    protected function getCommandTemplate(): TubeCommandTemplate
     {
-        if ($responseLine == Response::RESPONSE_NOT_FOUND) {
-            throw new Exception\ServerException(sprintf(
-                '%s: tube %s does not exist.',
-                $responseLine,
-                $this->_tube
-            ));
-        } elseif ($responseLine == Response::RESPONSE_PAUSED) {
-            return $this->_createResponse(Response::RESPONSE_PAUSED);
-        } else {
-            throw new Exception('Unhandled response: '.$responseLine);
-        }
+        return new TubeCommandTemplate("pause-tube {tube} {$this->delay}");
     }
 }

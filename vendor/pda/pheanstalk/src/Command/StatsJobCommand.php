@@ -1,45 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\YamlResponseParser;
+use Pheanstalk\Exception\JobNotFoundException;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Parser\YamlDictionaryParser;
+use Pheanstalk\Values\JobCommandTemplate;
+use Pheanstalk\Values\JobStats;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
 
 /**
  * The 'stats-job' command.
+ *
  * Gives statistical information about the specified job if it exists.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class StatsJobCommand
-    extends AbstractCommand
+final class StatsJobCommand extends JobCommand
 {
-    private $_jobId;
-
-    /**
-     * @param Job|int $job
-     */
-    public function __construct($job)
+    public function interpret(RawResponse $response): JobStats
     {
-        $this->_jobId = is_object($job) ? $job->getId() : $job;
+        return match (true) {
+            $response->type === ResponseType::Ok && isset($response->data) => JobStats::fromBeanstalkArray((new YamlDictionaryParser())->parse($response->data)),
+            $response->type === ResponseType::NotFound => throw new JobNotFoundException(),
+            $response->type === ResponseType::Ok => throw MalformedResponseException::expectedData(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): JobCommandTemplate
     {
-        return sprintf('stats-job %u', $this->_jobId);
-    }
-
-    /* (non-phpdoc)
-     * @see Command::getResponseParser()
-     */
-    public function getResponseParser()
-    {
-        return new YamlResponseParser(
-            YamlResponseParser::MODE_DICT
-        );
+        return new JobCommandTemplate("stats-job {id}");
     }
 }

@@ -1,62 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
+use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Exception;
-use Pheanstalk\Response;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\JobCommandTemplate;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\Success;
 
 /**
  * The 'bury' command.
  * Puts a job into a 'buried' state, revived only by 'kick' command.
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class BuryCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class BuryCommand extends JobCommand
 {
-    private $_job;
-    private $_priority;
-
-    /**
-     * @param object $job      Job
-     * @param int    $priority From 0 (most urgent) to 0xFFFFFFFF (least urgent)
-     */
-    public function __construct($job, $priority)
-    {
-        $this->_job = $job;
-        $this->_priority = $priority;
+    public function __construct(
+        JobIdInterface $jobId,
+        private readonly int $priority
+    ) {
+        parent::__construct($jobId);
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): JobCommandTemplate
     {
-        return sprintf(
-            'bury %u %u',
-            $this->_job->getId(),
-            $this->_priority
-        );
+        return new JobCommandTemplate("bury {id} {$this->priority}");
     }
 
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
+    public function interpret(RawResponse $response): Success
     {
-        if ($responseLine == Response::RESPONSE_NOT_FOUND) {
-            throw new Exception\ServerException(sprintf(
-                '%s: Job %u is not reserved or does not exist.',
-                $responseLine,
-                $this->_job->getId()
-            ));
-        } elseif ($responseLine == Response::RESPONSE_BURIED) {
-            return $this->_createResponse(Response::RESPONSE_BURIED);
-        } else {
-            throw new Exception('Unhandled response: '.$responseLine);
-        }
+        return match ($response->type) {
+            ResponseType::NotFound => throw new Exception\JobNotFoundException(),
+            ResponseType::Buried => new Success(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 }

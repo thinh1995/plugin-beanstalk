@@ -17,7 +17,7 @@ class Plugin extends Base
 {
     public function initialize()
     {
-        $connection = new Pheanstalk(BEANSTALKD_HOSTNAME);
+        $connection = Pheanstalk::create(BEANSTALKD_HOSTNAME);
 
         if ($connection->getConnection()->isServiceListening()) {
             $queue = new Queue(new BeanstalkQueueAdapter($connection, QUEUE_NAME));

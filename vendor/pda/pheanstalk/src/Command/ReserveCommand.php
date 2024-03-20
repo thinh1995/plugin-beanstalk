@@ -1,62 +1,40 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\Response;
+use Pheanstalk\Contract\CommandInterface;
+use Pheanstalk\Exception\DeadlineSoonException;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\TimedOutException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\Job;
+use Pheanstalk\Values\JobId;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
 
 /**
  * The 'reserve' command.
+ *
  * Reserves/locks a ready job in a watched tube.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class ReserveCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class ReserveCommand implements CommandInterface
 {
-    private $_timeout;
-
-    /**
-     * A timeout value of 0 will cause the server to immediately return either a
-     * response or TIMED_OUT.  A positive value of timeout will limit the amount of
-     * time the client will block on the reserve request until a job becomes
-     * available.
-     *
-     * @param int $timeout
-     */
-    public function __construct($timeout = null)
+    public function getCommandLine(): string
     {
-        $this->_timeout = $timeout;
+        return 'reserve';
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function interpret(RawResponse $response): Job
     {
-        return isset($this->_timeout) ?
-            sprintf('reserve-with-timeout %s', $this->_timeout) :
-            'reserve';
-    }
-
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
-    {
-        if ($responseLine === Response::RESPONSE_DEADLINE_SOON ||
-            $responseLine === Response::RESPONSE_TIMED_OUT)
-        {
-            return $this->_createResponse($responseLine);
-        }
-
-        list($code, $id) = explode(' ', $responseLine);
-
-        return $this->_createResponse($code, array(
-            'id' => (int) $id,
-            'jobdata' => $responseData,
-        ));
+        return match (true) {
+            $response->type === ResponseType::Reserved && isset($response->argument, $response->data) => new Job(new JobId($response->argument), $response->data),
+            $response->type === ResponseType::Reserved => throw MalformedResponseException::expectedDataAndIntegerArgument(),
+            $response->type === ResponseType::DeadlineSoon => throw new DeadlineSoonException(),
+            $response->type === ResponseType::TimedOut => throw new TimedOutException(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 }

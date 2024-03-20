@@ -1,44 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
+
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\TubeCommandTemplate;
 
 /**
  * The 'watch' command.
  * Adds a tube to the watchlist to reserve jobs from.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class WatchCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class WatchCommand extends TubeCommand
 {
-    private $_tube;
-
     /**
-     * @param string $tube
+     * @param RawResponse $response
+     * @return int The number of tubes currently in the watch list
+     * @throws MalformedResponseException
+     * @throws UnsupportedResponseException
      */
-    public function __construct($tube)
+    public function interpret(RawResponse $response): int
     {
-        $this->_tube = $tube;
+        if ($response->type === ResponseType::Watching && is_int($response->argument)) {
+            return $response->argument;
+        }
+        throw match ($response->type) {
+            ResponseType::Watching => MalformedResponseException::expectedIntegerArgument(),
+            default => new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): TubeCommandTemplate
     {
-        return 'watch '.$this->_tube;
-    }
-
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
-    {
-        return $this->_createResponse('WATCHING', array(
-            'count' => preg_replace('#^WATCHING (.+)$#', '$1', $responseLine)
-        ));
+        return new TubeCommandTemplate("watch {tube}");
     }
 }

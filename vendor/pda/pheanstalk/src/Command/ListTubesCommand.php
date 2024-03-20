@@ -1,35 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\YamlResponseParser;
+use Pheanstalk\Contract\CommandInterface;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Parser\YamlListParser;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\TubeList;
+use Pheanstalk\Values\TubeName;
 
 /**
  * The 'list-tubes' command.
- * List all existing tubes.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * List all existing tubes.
  */
-class ListTubesCommand
-    extends AbstractCommand
+final class ListTubesCommand implements CommandInterface
 {
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function getCommandLine(): string
     {
-        return 'list-tubes';
+        return "list-tubes";
     }
 
-    /* (non-phpdoc)
-     * @see Command::getResponseParser()
-     */
-    public function getResponseParser()
+    public function interpret(RawResponse $response): TubeList
     {
-        return new YamlResponseParser(
-            YamlResponseParser::MODE_LIST
-        );
+        if ($response->type === ResponseType::Ok && is_string($response->data)) {
+            return new TubeList(...array_map(
+                fn (string $rawName): TubeName => new TubeName($rawName),
+                (new YamlListParser())->parse($response->data)
+            ));
+        }
+        throw match ($response->type) {
+            ResponseType::Ok => MalformedResponseException::expectedData(),
+            default => new UnsupportedResponseException($response->type)
+        };
     }
 }

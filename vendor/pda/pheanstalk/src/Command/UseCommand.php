@@ -1,8 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\ResponseParser;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\TubeCommandTemplate;
+use Pheanstalk\Values\TubeName;
 
 /**
  * The 'use' command.
@@ -11,42 +18,21 @@ use Pheanstalk\ResponseParser;
  * the tube specified by this command. If no use command has been issued, jobs
  * will be put into the tube named "default".
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class UseCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class UseCommand extends TubeCommand
 {
-    /**
-     * @var string
-     */
-    private $_tube;
-
-    /**
-     * @param string $tube The name of the tube to use
-     */
-    public function __construct($tube)
-    {
-        $this->_tube = $tube;
+    public function interpret(
+        RawResponse $response
+    ): TubeName {
+        return match (true) {
+            $response->type === ResponseType::Using && isset($response->argument) => new TubeName(is_int($response->argument) ? (string) $response->argument : $response->argument),
+            $response->type === ResponseType::Using => throw MalformedResponseException::expectedIntegerArgument(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): TubeCommandTemplate
     {
-        return 'use '.$this->_tube;
-    }
-
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
-    {
-        return $this->_createResponse('USING', array(
-            'tube' => preg_replace('#^USING (.+)$#', '$1', $responseLine)
-        ));
+        return new TubeCommandTemplate("use {tube}");
     }
 }

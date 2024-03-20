@@ -1,15 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Exception;
 
 /**
- * An exception originating as a beanstalkd server error
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * An exception originating as a beanstalkd server error.
  */
-class ServerBadFormatException
-    extends ServerException
+final class ServerBadFormatException extends ServerException
 {
+    public function __construct(string $commandLine)
+    {
+        parent::__construct("Bad format for command {$commandLine}");
+    }
 }

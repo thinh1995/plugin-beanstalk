@@ -1,15 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Exception;
 
 /**
- * An exception originating as a beanstalkd server error
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * An exception originating as a beanstalkd server error.
  */
-class ServerUnknownCommandException
-    extends ServerException
+final class ServerUnknownCommandException extends ServerException
 {
 }

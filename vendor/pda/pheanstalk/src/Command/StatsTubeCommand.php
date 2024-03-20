@@ -1,45 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
-use Pheanstalk\YamlResponseParser;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\TubeNotFoundException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Parser\YamlDictionaryParser;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\TubeCommandTemplate;
+use Pheanstalk\Values\TubeStats;
 
 /**
  * The 'stats-tube' command.
  * Gives statistical information about the specified tube if it exists.
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class StatsTubeCommand
-    extends AbstractCommand
+final class StatsTubeCommand extends TubeCommand
 {
-    private $_tube;
-
-    /**
-     * @param string $tube
-     */
-    public function __construct($tube)
+    public function interpret(RawResponse $response): TubeStats
     {
-        $this->_tube = $tube;
+        if ($response->type === ResponseType::Ok && isset($response->data)) {
+            return TubeStats::fromBeanstalkArray((new YamlDictionaryParser())->parse($response->data));
+        }
+        throw match ($response->type) {
+            ResponseType::NotFound => new TubeNotFoundException(),
+            ResponseType::Ok => MalformedResponseException::expectedData(),
+            default => new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): TubeCommandTemplate
     {
-        return sprintf('stats-tube %s', $this->_tube);
-    }
-
-    /* (non-phpdoc)
-     * @see Command::getResponseParser()
-     */
-    public function getResponseParser()
-    {
-        return new YamlResponseParser(
-            YamlResponseParser::MODE_DICT
-        );
+        return new TubeCommandTemplate("stats-tube {tube}");
     }
 }

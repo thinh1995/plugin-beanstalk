@@ -6,3 +6,9 @@ pheanstalk.phar
 
 # Composer installs dependencies here.
 vendor/
+# Test coverage is stored here
+tests/coverage
+.idea
+.phpunit.result.cache
+.phpunit.cachetests/snippets
+tests/snippets

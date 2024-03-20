@@ -1,9 +1,9 @@
 #!/usr/bin/env php
 <?php
 
-define('BASE_DIR', realpath(__DIR__ . '/..'));
+define('BASE_DIR', realpath(__DIR__.'/..'));
 define('PHAR_FILENAME', 'pheanstalk.phar');
-define('PHAR_FULLPATH', BASE_DIR . '/' . PHAR_FILENAME);
+define('PHAR_FULLPATH', BASE_DIR.'/'.PHAR_FILENAME);
 
 // ----------------------------------------
 
@@ -21,7 +21,7 @@ function reexecute_if_phar_readonly($argv)
     if (ini_get('phar.readonly') && !in_array('--ignore-readonly', $argv)) {
         $command = sprintf(
             'php -d phar.readonly=0 %s --ignore-readonly',
-            implode($argv, ' ')
+            implode(' ', $argv)
         );
 
         echo "Phar configured readonly in php.ini; attempting to re-execute:\n";
@@ -46,7 +46,7 @@ function build_pheanstalk_phar()
     $phar = new Phar(PHAR_FULLPATH);
     $phar->buildFromDirectory(BASE_DIR);
     $phar->setStub(
-        $phar->createDefaultStub("vendor/autoload.php")
+        $phar->createDefaultStub('vendor/autoload.php')
     );
 }
 

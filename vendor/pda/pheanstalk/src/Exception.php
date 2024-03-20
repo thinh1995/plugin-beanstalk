@@ -1,15 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk;
 
 /**
- * An exception originating from the Pheanstalk package
- *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
+ * An exception originating from the Pheanstalk package.
+ * @internal
+ * @extensible
  */
-class Exception
-    extends \Exception
+class Exception extends \Exception
 {
 }

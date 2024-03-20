@@ -1,72 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
+use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Exception;
-use Pheanstalk\Response;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\JobCommandTemplate;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\Success;
 
 /**
  * The 'release' command.
+ *
  * Releases a reserved job back onto the ready queue.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class ReleaseCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class ReleaseCommand extends JobCommand
 {
-    private $_job;
-    private $_priority;
-    private $_delay;
-
-    /**
-     * @param object $job      Job
-     * @param int    $priority From 0 (most urgent) to 0xFFFFFFFF (least urgent)
-     * @param int    $delay    Seconds to wait before job becomes ready
-     */
-    public function __construct($job, $priority, $delay)
+    public function __construct(JobIdInterface $job, private readonly int $priority, private readonly int $delay)
     {
-        $this->_job = $job;
-        $this->_priority = $priority;
-        $this->_delay = $delay;
+        parent::__construct($job);
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function interpret(RawResponse $response): Success
     {
-        return sprintf(
-            'release %u %u %u',
-            $this->_job->getId(),
-            $this->_priority,
-            $this->_delay
-        );
+        return match ($response->type) {
+            ResponseType::NotFound => throw new Exception\JobNotFoundException(),
+            ResponseType::Released => new Success(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
+    protected function getCommandTemplate(): JobCommandTemplate
     {
-        if ($responseLine == Response::RESPONSE_BURIED) {
-            throw new Exception\ServerException(sprintf(
-                'Job %u %s: out of memory trying to grow data structure',
-                $this->_job->getId(),
-                $responseLine
-            ));
-        }
-
-        if ($responseLine == Response::RESPONSE_NOT_FOUND) {
-            throw new Exception\ServerException(sprintf(
-                'Job %u %s: does not exist or is not reserved by client',
-                $this->_job->getId(),
-                $responseLine
-            ));
-        }
-
-        return $this->_createResponse($responseLine);
+        return new JobCommandTemplate("release {id} {$this->priority} {$this->delay}");
     }
 }

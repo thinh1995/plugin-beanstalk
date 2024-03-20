@@ -1,58 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
 
 use Pheanstalk\Exception;
-use Pheanstalk\Response;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\JobCommandTemplate;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
+use Pheanstalk\Values\Success;
 
 /**
  * The 'touch' command.
- *
- * The "touch" command allows a worker to request more time to work on a job.
+ * The 'touch' command allows a worker to request more time to work on a job.
  * This is useful for jobs that potentially take a long time, but you still want
  * the benefits of a TTR pulling a job away from an unresponsive worker.  A worker
  * may periodically tell the server that it's still alive and processing a job
  * (e.g. it may do this on DEADLINE_SOON).
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class TouchCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class TouchCommand extends JobCommand
 {
-    private $_job;
-
-    /**
-     * @param Job $job
-     */
-    public function __construct($job)
+    public function interpret(RawResponse $response): Success
     {
-        $this->_job = $job;
+        return match ($response->type) {
+            ResponseType::NotFound => throw new Exception\JobNotFoundException(),
+            ResponseType::Touched => new Success(),
+            default => throw new UnsupportedResponseException($response->type)
+        };
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    protected function getCommandTemplate(): JobCommandTemplate
     {
-        return sprintf('touch %u', $this->_job->getId());
-    }
-
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
-    {
-        if ($responseLine == Response::RESPONSE_NOT_FOUND) {
-            throw new Exception\ServerException(sprintf(
-                'Job %u %s: does not exist or is not reserved by client',
-                $this->_job->getId(),
-                $responseLine
-            ));
-        }
-
-        return $this->_createResponse($responseLine);
+        return new JobCommandTemplate("touch {id}");
     }
 }

@@ -1,48 +1,43 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Pheanstalk\Command;
+
+use Pheanstalk\Contract\CommandInterface;
+use Pheanstalk\Exception\MalformedResponseException;
+use Pheanstalk\Exception\UnsupportedResponseException;
+use Pheanstalk\Values\RawResponse;
+use Pheanstalk\Values\ResponseType;
 
 /**
  * The 'kick' command.
+ *
  * Kicks buried or delayed jobs into a 'ready' state.
  * If there are buried jobs, it will kick up to $max of them.
  * Otherwise, it will kick up to $max delayed jobs.
  *
- * @author Paul Annesley
- * @package Pheanstalk
- * @license http://www.opensource.org/licenses/mit-license.php
  */
-class KickCommand
-    extends AbstractCommand
-    implements \Pheanstalk\ResponseParser
+final class KickCommand implements CommandInterface
 {
-    private $_max;
-
-    /**
-     * @param int $max The maximum number of jobs to kick
-     */
-    public function __construct($max)
+    public function __construct(private readonly int $max)
     {
-        $this->_max = (int) $max;
     }
 
-    /* (non-phpdoc)
-     * @see Command::getCommandLine()
-     */
-    public function getCommandLine()
+    public function getCommandLine(): string
     {
-        return 'kick '.$this->_max;
+        return "kick {$this->max}";
     }
 
-    /* (non-phpdoc)
-     * @see ResponseParser::parseResponse()
-     */
-    public function parseResponse($responseLine, $responseData)
-    {
-        list($code, $count) = explode(' ', $responseLine);
-
-        return $this->_createResponse($code, array(
-            'kicked' => (int) $count,
-        ));
+    public function interpret(
+        RawResponse $response
+    ): int {
+        if ($response->type === ResponseType::Kicked && is_int($response->argument)) {
+            return $response->argument;
+        }
+        throw match ($response->type) {
+            ResponseType::Kicked => MalformedResponseException::expectedIntegerArgument(),
+            default => new UnsupportedResponseException($response->type),
+        };
     }
 }
